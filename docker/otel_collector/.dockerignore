@@ -1,0 +1,7 @@
+.git
+.gitignore
+.deployment
+.vscode
+__pycache__
+Dockerfile*
+docker-compose*

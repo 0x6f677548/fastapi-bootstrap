@@ -1,0 +1,10 @@
+*.pyc
+*.prof
+test/test_data/output/*
+.vscode/launch.json
+.venv/*
+.virtualenv/*
+.vscode/settings.json
+.log/*
+dist/*
+act-secrets

@@ -1,0 +1,14 @@
+.git
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.vscode
+dist
+htmlcov
+tests/
+__pycache__
+*.log
+docs/
+.gitignore
+.deploy/
+.github/

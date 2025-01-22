@@ -1,0 +1,118 @@
+---
+services:
+
+  #-------------------------------------------------------------------
+  # api_proxy is a nginx server that acts as a proxy for api_server
+  # ensuring that the api_server is not exposed to the internet
+  # it implements rate limiting, and other security features
+  api_proxy:
+    container_name: api_proxy
+    image: api_proxy
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: ./docker/api_proxy/Dockerfile
+    depends_on:
+      - api_server
+      - otel_collector
+    volumes:
+      - ./.log/api_proxy:/var/log/nginx
+    ports:
+      - 80:80
+    networks:
+      - frontend_network
+      - backend_network
+
+  #-------------------------------------------------------------------
+  # api_server is a fastapi app 
+  api_server: 
+    container_name: api_server
+    image: api_server
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: ./docker/api_server/Dockerfile
+    command:
+      - opentelemetry-instrument
+      - uvicorn
+      - fastapi_bootstrap.api_server.app:app
+      - --host
+      - api_server
+      - --port
+      - "80"
+
+    depends_on:
+      - otel_collector
+    environment:
+      - OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true
+      - OTEL_PYTHON_LOG_CORRELATION = true
+      # - OTEL_PYTHON_LOG_LEVEL=DEBUG
+      - OTEL_SERVICE_NAME=server.api.fastapi_bootstrap
+      - OTEL_TRACES_EXPORTER=otlp
+      - OTEL_METRICS_EXPORTER=otlp
+      - OTEL_LOGS_EXPORTER=otlp
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel_collector:4317
+      - OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=http://otel_collector:4317
+      - OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://otel_collector:4317
+
+    networks:
+      - backend_network
+
+
+  #-------------------------------------------------------------------
+  # otel_collector is a opentelemetry collector that receives traces 
+  #   and metrics from api_server
+  #   and sends them to:
+  #     - dev: jaeger local container
+  #     - prod: otlp collector in the cloud, like newrelic, datadog, etc.
+  otel_collector:
+    container_name: otel_collector
+    #image: otel/opentelemetry-collector-contrib:latest
+    image: otel_collector
+    build:
+      context: .
+      dockerfile: ./docker/otel_collector/Dockerfile
+    restart: unless-stopped
+
+    volumes:
+      - ./.log:/var/log/
+    networks:
+      - backend_network
+
+  
+  #-------------------------------------------------------------------
+  # jaeger is a jaeger all-in-one container that receives traces 
+  # from otel_collector and serves as a UI for viewing traces
+  #  it is only used in dev environment
+  jaeger:
+    container_name: jaeger
+    image: jaegertracing/all-in-one:latest
+    restart: unless-stopped
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    profiles:
+      - dev #jaeger should't go to production 
+    networks:
+      - backend_network
+
+
+networks:
+  frontend_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: "172.16.0.0/24"
+          gateway: "172.16.0.254"
+        - subnet: "2001:3984:3989::/64"
+          gateway: "2001:3984:3989::fffe"        
+
+  backend_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: "172.16.1.0/24"
+          gateway: "172.16.1.254"
+        - subnet: "2001:3984:3989:1::/64"
+          gateway: "2001:3984:3989:1::fffe"

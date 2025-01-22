@@ -1,0 +1,29 @@
+---
+services:
+
+  #-------------------------------------------------------------------
+  # api_server is a fastapi app 
+  api_server: 
+    environment:
+
+      # used by api_server to validate incoming requests
+      - API_SERVER_API_KEY==@@API_SERVER_API_KEY@@
+      
+      # used by api_server to enable/disable turnstile      
+      - TURNSTILE_ENABLED=true
+      - TURNSTILE_SECRET_KEY=@@API_SERVER_TURNSTILE_SECRET_KEY@@
+
+  #-------------------------------------------------------------------
+  # otel_collector is a opentelemetry collector that receives traces 
+  #   and metrics from api_server
+  #   and sends them to:
+  #     - dev: jaeger local container
+  #     - prod: otlp collector in the cloud, like newrelic, datadog, etc.
+  otel_collector:
+    environment:
+      # OTLP upstream endpoint used by the collector to centralize traces and metrics 
+      - OTEL_EXPORTER_OTLP_ENDPOINT=@@OTEL_COLLECTOR_OTEL_EXPORTER_OTLP_ENDPOINT@@
+      - OTEL_EXPORTER_OTLP_API_KEY=@@OTEL_COLLECTOR_OTEL_EXPORTER_OTLP_API_KEY@@
+      - OTEL_EXPORTER_OTLP_INSECURE=false
+      # represents a label to tag logging and tracing data with the environment name
+      - TRACING_ENVIRONMENT=prod

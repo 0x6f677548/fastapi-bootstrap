@@ -1,0 +1,98 @@
+---
+name: deploy_to_dockerhost
+# yamllint disable rule:line-length
+
+on:
+  release:
+    types: [released]
+  workflow_dispatch:
+    
+run-name: ${{ github.ref_name }} -> deploy_to_dockerhost (
+  ${{ github.run_attempt }}
+  )
+
+permissions:
+  contents: read
+    
+jobs:
+  deploy_to_dockerhost:
+    name: deploy_to_dockerhost
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency: production
+
+    steps:
+      - name: Get current date and time
+        id: datetime
+        run: echo "datetime=$(date +'%Y-%m-%dT%H-%M-%SZ')" >> $GITHUB_OUTPUT
+
+      - name: Display date/time in output (forensics when triaging issues)
+        run: echo ${{ steps.datetime.outputs.datetime }}
+      
+      - name: Extract project name
+        id: project
+        run: echo "name=$(echo ${{ github.repository }} | cut -d'/' -f2)" >> $GITHUB_OUTPUT
+
+      - name: Display project name
+        run: echo "Project ${{ steps.project.outputs.name }} will be deployed at /apps/${{ steps.project.outputs.name }}"
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Check execution environment
+        id: check_env
+        run: |
+          if [ "$ACT" = "true" ]; then
+            echo "is_act=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_act=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Tailscale on ACT
+        if: steps.check_env.outputs.is_act == 'true'
+        # original tailscale/github-action@v3 has some problems on ACT so we use 
+        # pikachews/tailscale-action
+        # see https://github.com/tailscale/github-action/issues/120#issuecomment-2571469160
+        uses: pikachews/tailscale-action@v1
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Tailscale on other environments (like github)
+        if: steps.check_env.outputs.is_act != 'true'
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: create dir and stop and remove containers through ssh
+        run: |
+          ssh -o "StrictHostKeyChecking no" ${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }} "
+            mkdir -p /apps/${{ steps.project.outputs.name }} &&
+            cd /apps/${{ steps.project.outputs.name }} &&
+            echo 'Stopping and removing containers...' &&
+            [ -f docker-compose.prod.yml ] && docker compose --env-file .env.prod down --remove-orphans || exit 0
+          "
+      
+
+      - name: rsync files to docker host through ssh
+        run: |
+          # Install rsync if not already installed
+          if ! command -v rsync &> /dev/null; then
+            DEBIAN_FRONTEND=noninteractive apt-get update -y &&
+            DEBIAN_FRONTEND=noninteractive apt-get install rsync -y
+          fi &&
+          rsync -avzi -e "ssh -o StrictHostKeyChecking=no" --delete --exclude-from=.deploy/rsync-exclusions ${{ github.workspace }}/ ${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }}:/apps/${{ steps.project.outputs.name }}/ 
+          
+      - name: add secrets to docker-compose.prod.yml
+        run: |
+          ssh -o "StrictHostKeyChecking no" ${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }} "
+            cd /apps/${{ steps.project.outputs.name }} &&
+            sed -i -e 's,@@API_SERVER_TURNSTILE_SECRET_KEY@@,${{ secrets.API_SERVER_TURNSTILE_SECRET_KEY}},g' docker-compose.prod.yml &&
+            sed -i -e 's,@@OTEL_COLLECTOR_OTEL_EXPORTER_OTLP_ENDPOINT@@,${{ secrets.OTEL_COLLECTOR_OTEL_EXPORTER_OTLP_ENDPOINT}},g' docker-compose.prod.yml &&
+            sed -i -e 's,@@OTEL_COLLECTOR_OTEL_EXPORTER_OTLP_API_KEY@@,${{ secrets.OTEL_COLLECTOR_OTEL_EXPORTER_OTLP_API_KEY}},g' docker-compose.prod.yml &&
+            sed -i -e 's,@@API_SERVER_API_KEY@@,${{ secrets.API_SERVER_API_KEY}},g' docker-compose.prod.yml &&
+            docker compose --env-file .env.prod up -d --remove-orphans --build
+          "

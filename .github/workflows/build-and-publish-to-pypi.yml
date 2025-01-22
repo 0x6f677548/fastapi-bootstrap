@@ -1,0 +1,80 @@
+---
+name: build_and_pub_to_pypi
+# yamllint disable rule:line-length
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+# set the run-name 
+run-name: ${{ github.ref_name }} -> build_and_pub_to_pypi (
+  ${{ github.run_attempt }}
+  )
+  
+            
+jobs:
+
+  build_and_pub_to_pypi:
+    name: build_and_pub_to_pypi
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+
+    - name: Echo current date and time
+      id: datetime
+      run: |
+        echo "datetime: $(date '+%Y-%m-%d %H:%M:%S')"
+
+
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.13
+    
+    - name: Update pip and install hatch
+      run: |
+        export PIP_ROOT_USER_ACTION=ignore
+        pip install --upgrade pip
+        pip install hatch
+
+    - name: Get version
+      id: get_version
+      run: |
+        export version=$(hatch version)
+        echo "version=$version" >> $GITHUB_OUTPUT
+      
+    #validates that the version is a valid semver
+    - name: Validate version
+      id: validate_version
+      run: |
+        if [[ ! ${{ steps.get_version.outputs.version }} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "Invalid version: ${{ steps.get_version.outputs.version }}"
+          exit 1
+        fi
+
+    
+    - name: Hatch build
+      run: hatch build
+
+    - name: Display structure of build files
+      id: display_build_files
+      run: | 
+        ls -R dist/
+
+    - name: Archive all artifacts in dist/
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist-v${{ steps.get_version.outputs.version }}
+        path: dist/
+        if-no-files-found: error
+
+    - name: Publish to PyPi
+      uses: pypa/gh-action-pypi-publish@v1.12.3
+      # with:
+        # repository-url: https://test.pypi.org/legacy/

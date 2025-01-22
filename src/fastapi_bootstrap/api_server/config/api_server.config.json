@@ -1,0 +1,66 @@
+{
+    "authentication": {
+        "turnstile" : {
+            "enabled": "${TURNSTILE_ENABLED}",
+            "secret_key" : "${TURNSTILE_SECRET_KEY}"
+        },
+        "api_key_management" : {
+            "valid_api_keys" : 
+                "${API_SERVER_API_KEY}"
+            
+        }
+        
+    },
+
+    "middleware": {
+        "CORSMiddleware": 
+        {
+            "kwargs":{
+                "allow_origins": [
+                    "http://localhost:8080",
+                    "http://localhost"
+                ],
+                "allow_credentials": true,
+                "allow_methods": ["*"],
+                "allow_headers" : ["*"]
+            }
+        },
+        "RequestIdMiddleware": {
+            "enabled": true,
+            "kwargs": {
+                "header": "X-Request-ID"
+            }
+        },
+        "ResponseTimeMiddleware": {
+            "enabled": true,
+            "kwargs": {
+                "header": "X-Response-Time"
+            }
+        },
+        "LogCallMiddleware": {
+            "enabled": true,
+            "kwargs": {
+                "log_level": 10 
+            }
+        }, 
+        "ExceptionHandlerMiddleware" : {
+            "enabled": true
+        }
+
+    },
+    "logging": {
+        "version": 1,
+        "disable_existing_loggers": false,
+        "incremental": true,
+        "loggers": {
+            "root": {
+                "level": "INFO"
+            },
+            "routers.calculator": {
+                "level": "INFO",
+                "qualname": "routers.calculator",
+                "propagate": 0
+            }
+        }
+    }
+}

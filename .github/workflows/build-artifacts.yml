@@ -1,0 +1,59 @@
+---
+name: build_artifacts
+# yamllint disable-line rule:line-length
+
+on:
+  workflow_dispatch:
+
+# set the run-name 
+run-name: ${{ github.ref_name }} -> build_artifacts (
+  ${{ github.run_attempt }}
+  )
+
+permissions: {}
+
+jobs:
+  build_artifacts:
+    name: build_artifacts
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+
+    - name: Echo current date and time
+      id: datetime
+      run: |
+        echo "datetime: $(date '+%Y-%m-%d %H:%M:%S')"
+
+
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.13
+    
+    - name: Update pip and install hatch
+      run: |
+        export PIP_ROOT_USER_ACTION=ignore
+        pip install --upgrade pip
+        pip install hatch
+
+    - name: Get version
+      id: get_version
+      run: |
+        export version=$(hatch version)
+        echo "version=$version" >> $GITHUB_OUTPUT
+    
+    - name: Hatch build
+      run: hatch build
+
+    - name: Archive all artifacts in dist/
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist-v${{ steps.get_version.outputs.version }}
+        path: dist/
+
+      

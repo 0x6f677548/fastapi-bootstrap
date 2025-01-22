@@ -1,0 +1,195 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fastapi-bootstrap"
+dynamic = ["version"]
+description = 'fastapi-bootstrap is a sample app that demonstrates how to use FastAPI with Hatch, NGINX, OTEL, and Docker.'
+readme = "README.md"
+requires-python = ">=3.13"
+license = "GPL-3.0"
+keywords = ["fastapi", "hatch", "nginx", "otel", "docker", "bootstrap"]
+authors = [
+  { name = "0x6f677546 (Hugo Batista)"},
+]
+classifiers = [
+  "Operating System :: OS Independent",
+  "Topic :: Software Development",
+  "Topic :: Utilities",
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+  "Intended Audience :: Information Technology",
+  "Intended Audience :: System Administrators",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.13",
+]
+
+dependencies = [
+  "fastapi>=0.115.6",
+  "python_multipart>=0.0.20",
+  "uvicorn>=0.34.0",
+  "opentelemetry-distro>=0.50b0",
+  "opentelemetry-instrumentation-logging>=0.50b0",
+  "opentelemetry-instrumentation-fastapi>=0.50b0",
+  "opentelemetry-exporter-otlp>=1.29.0",
+  "aiohttp>=3.10.5",
+]
+[tool.hatch.metadata]
+allow-direct-references = true
+
+
+[project.scripts]
+api-server = "fastapi_bootstrap.api_server:entrypoint"
+
+[project.urls]
+Documentation = "https://github.com/0x6f677548/fastapi-bootstrap#readme"
+Issues = "https://github.com/0x6f677548/fastapi-bootstrap/issues"
+Source = "https://github.com/0x6f677548/fastapi-bootstrap"
+
+[tool.hatch.version]
+path = "src/fastapi_bootstrap/api_server/__about__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fastapi_bootstrap"]
+exclude = ["tests"]
+
+[tool.hatch.build.targets.sdist]
+packages = ["src/fastapi_bootstrap"]
+exclude = ["tests"]
+
+[tool.hatch.envs.default]
+# using uv for faster installs
+installer = "uv"
+
+dependencies = [
+  "coverage[toml]>=6.5",
+  "pytest",
+  "httpx"
+  #"fastapi_bootstrap-cli @ {root:parent:uri}/fastapi_bootstrap-cli",
+]
+
+# Pre-install dependencies that are not available on PyPI
+pre-install-commands = [
+   "python -c \"import glob, subprocess; [subprocess.run(['uv', 'pip', 'install', whl]) for whl in glob.glob('.dependencies/*.whl')]\"",
+]
+
+[tool.hatch.envs.default.env-vars]
+API_SERVER_API_KEY = "devapikey"
+
+[tool.hatch.envs.default.scripts]
+test = "pytest {args:tests} -v"
+test-cov = "coverage run -m pytest {args:tests} -v"
+cov-report = [
+  "- coverage combine",
+  "coverage report",
+  "coverage html",
+]
+cov = [
+  "test-cov",
+  "cov-report",
+]
+
+[[tool.hatch.envs.all.matrix]]
+python = ["3.13"]
+
+[tool.hatch.envs.lint]
+detached = true
+# using uv for faster installs
+installer = "uv"
+
+dependencies = [
+  "black>=23.1.0",
+  "mypy>=1.0.0",
+  "ruff>=0.0.243",
+]
+[tool.hatch.envs.lint.scripts]
+typing = "mypy --ignore-missing-imports --install-types --non-interactive {args:src/fastapi_bootstrap tests}"
+style = [
+  "ruff check {args:.}",
+  "black --check --diff {args:.}",
+]
+fmt = [
+  "black {args:.}",
+  "ruff --fix {args:.}",
+  "style",
+]
+all = [
+  "style",
+  "typing",
+]
+
+[tool.black]
+target-version = ["py37"]
+line-length = 100
+skip-string-normalization = true
+
+[tool.ruff]
+target-version = "py37"
+line-length = 100
+lint.select = [
+  "A",
+  "ARG",
+  "B",
+  "C",
+  "DTZ",
+  "E",
+  "EM",
+  "F",
+  "FBT",
+  "I",
+  "ICN",
+  "ISC",
+  "N",
+  "PLC",
+  "PLE",
+  "PLR",
+  "PLW",
+  "Q",
+  "RUF",
+  "S",
+  "T",
+  "TID",
+  "UP",
+  "W",
+  "YTT",
+]
+lint.ignore = [
+  # Ignore Import block is un-sorted or un-formatted
+  "I001",
+  # Ignore function call in argument defaults
+  "B008",
+]
+lint.unfixable = [
+  # Don't touch unused imports
+  "F401",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["fastapi_bootstrap"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can use magic values, assertions, and relative imports
+"tests/**/*" = ["PLR2004", "S101", "TID252"]
+
+[tool.coverage.run]
+source_pkgs = ["fastapi_bootstrap", "tests"]
+branch = true
+parallel = true
+omit = [
+  "src/fastapi_bootstrap/api_server/__about__.py",
+]
+
+[tool.coverage.paths]
+fastapi_bootstrap = ["src/fastapi_bootstrap", "*/fastapi-bootstrap/src/fastapi_bootstrap"]
+tests = ["tests", "*/fastapi_bootstrap/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]

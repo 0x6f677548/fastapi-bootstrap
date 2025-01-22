@@ -1,0 +1,76 @@
+---
+# yamllint disable rule:line-length
+receivers:
+  # TODO: #6 syslog ports should be merged and 
+  #  a single receiver should be used, taking advantage of facility
+  syslog/nginx:
+    udp:
+      listen_address: "otel_collector:514"
+    protocol: rfc3164
+    operators:
+      - type: json_parser
+        parse_from: attributes.message
+      - type: copy
+        from: attributes.request
+        to: body
+  syslog/nginx-error:
+    udp:
+      listen_address: "otel_collector:50514"
+    protocol: rfc3164
+    operators:
+      - type: regex_parser
+        parse_from: attributes.message
+        regex: '^(?P<time_local>[^ ]* [^ ]*) \[(?P<log_level>[^\]]*)\] (?P<pid>[^:]*): (?P<message>.*)$'   
+      - type: copy
+        from: attributes.log_level
+        to: attributes.severity
+      - type: copy
+        from: attributes.message
+        to: body
+      - type: add
+        field: attributes.service_name
+        value: nginx.error      
+  
+    
+  otlp/receiver:
+    protocols:
+      grpc:
+        endpoint: "otel_collector:4317"
+      http:
+        endpoint: "otel_collector:4318"
+
+processors:
+  resource/env:
+    attributes:
+      - key: env
+        value: ${TRACING_ENVIRONMENT}
+        action: upsert
+  batch:
+    send_batch_max_size: 100
+    send_batch_size: 10
+    timeout: 10s
+
+exporters:
+  otlp/exporter:
+    endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+    headers:
+      api-key: ${OTEL_EXPORTER_OTLP_API_KEY}
+    tls:
+      insecure: ${OTEL_EXPORTER_OTLP_INSECURE}
+  debug:
+    verbosity: normal
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp/receiver]
+      processors: [resource/env, batch]
+      exporters: [otlp/exporter]
+    traces:
+      receivers: [otlp/receiver]
+      processors: [resource/env, batch]
+      exporters: [otlp/exporter]
+    logs:
+      receivers: [syslog/nginx-error, syslog/nginx, otlp/receiver]
+      processors: [resource/env, batch]
+      exporters: [debug, otlp/exporter]

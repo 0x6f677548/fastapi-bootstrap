@@ -6,7 +6,7 @@
 [![GitHub - Lint](https://github.com/0x6f677548/fastapi-bootstrap/actions/workflows/lint.yml/badge.svg)](https://github.com/0x6f677548/fastapi-bootstrap/actions/workflows/lint.yml)
 [![GitHub - Test](https://github.com/0x6f677548/fastapi-bootstrap/actions/workflows/test.yml/badge.svg)](https://github.com/0x6f677548/fastapi-bootstrap/actions/workflows/test.yml)
 
-FastAPI Bootstrap is a project template that includes some best practices that I use on my FastAPI projects. It includes a FastAPI server, an NGINX server acting as a reverse proxy, and an OpenTelemetry collector. 
+FastAPI Bootstrap is a project template that bundles NGINX, FastAPI and OpenTelemetry, providing a bootstrap for anyone that wants to expose an API securely and with instrumentation. 
 
 # Architecture
 The project is composed of the following containers:
